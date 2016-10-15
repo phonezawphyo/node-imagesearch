@@ -3,3 +3,5 @@ node_modules/
 tmp/
 .vagrant/
 Vagrantfile
+*.swo
+*.swp

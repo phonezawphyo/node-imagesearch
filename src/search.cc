@@ -12,13 +12,14 @@
 
 using namespace v8;
 
-Handle<Value> Search(const Arguments& args) {
-    HandleScope scope;
+void Search(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = Isolate::GetCurrent();
+    EscapableHandleScope scope(isolate);
     
-    Local<String> rows = String::New("rows");
-    Local<String> cols = String::New("cols");
-    Local<String> data = String::New("data");
-    Local<String> channels = String::New("channels");
+    Local<String> rows = String::NewFromUtf8(isolate, "rows");
+    Local<String> cols = String::NewFromUtf8(isolate, "cols");
+    Local<String> data = String::NewFromUtf8(isolate, "data");
+    Local<String> channels = String::NewFromUtf8(isolate, "channels");
     
     // unwrap arguments
     Handle<Object> matrix1 = Handle<Object>::Cast(args[0]);
@@ -27,15 +28,16 @@ Handle<Value> Search(const Arguments& args) {
     const unsigned int colorTolerance = args[2]->IsNumber() ? args[2]->Int32Value() : 0;
     const unsigned int pixelTolerance = args[3]->IsNumber() ? args[3]->Int32Value() : 0;
     
-    Persistent<Function> callback = Persistent<Function>::New(Local<Function>::Cast(args[4]));
+    Persistent<Function> callback;
+    callback.Reset(isolate, Local<Function>::Cast(args[4]));
     
     // check for required matrix properties
     if ( ! matrix1->Has(rows) || ! matrix1->Has(cols) || ! matrix1->Has(channels) || ! matrix1->Has(data)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'imgMatrix'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'imgMatrix'")));
     }
     
     if ( ! matrix2->Has(rows) || ! matrix2->Has(cols) || ! matrix2->Has(channels) || ! matrix2->Has(data)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'tplMatrix'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'tplMatrix'")));
     }
     
     // unwrap matrices
@@ -49,11 +51,11 @@ Handle<Value> Search(const Arguments& args) {
     
     // channel count validation
     if (m1Channels < 1 || m2Channels < 1 || m1Channels > 4 || m2Channels > 4) {
-        return ThrowException(Exception::TypeError(String::New("Bad number of channels")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad number of channels")));
     }
     
     if (abs((int) m2Channels - (int) m1Channels) > 1) {
-        return ThrowException(Exception::TypeError(String::New("Channel mismatch")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Channel mismatch")));
     }
     
     // unwrap matrix.data
@@ -62,12 +64,12 @@ Handle<Value> Search(const Arguments& args) {
     
     // TODO: consider removal of channels property
     // declared and actual channel count validation
-    if (m1Channels != m1Data->Get(String::New("length"))->Uint32Value()) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'imgMatrix'")));
+    if (m1Channels != m1Data->Get(String::NewFromUtf8(isolate, "length"))->Uint32Value()) {
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'imgMatrix'")));
     }
     
-    if (m2Channels != m2Data->Get(String::New("length"))->Uint32Value()) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'tplMatrix'")));
+    if (m2Channels != m2Data->Get(String::NewFromUtf8(isolate, "length"))->Uint32Value()) {
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'tplMatrix'")));
     }
     
     // unwrap matrix.data channels
@@ -178,19 +180,19 @@ Handle<Value> Search(const Arguments& args) {
     
     // validate channel buffer lengths
     if (m1Channels == 2 && m1KL != m1AL) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'imgMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'imgMatrix.data'")));
     } else if (m1Channels == 3 && (m1RL != m1GL || m1RL != m1BL)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'imgMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'imgMatrix.data'")));
     } else if (m1Channels == 4 && (m1RL != m1GL || m1RL != m1BL || m1RL != m1AL)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'imgMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'imgMatrix.data'")));
     }
     
     if (m2Channels == 2 && m2KL != m2AL) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'tplMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'tplMatrix.data'")));
     } else if (m2Channels == 3 && (m2RL != m2GL || m2RL != m2BL)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'tplMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'tplMatrix.data'")));
     } else if (m2Channels == 4 && (m2RL != m2GL || m2RL != m2BL || m2RL != m2AL)) {
-        return ThrowException(Exception::TypeError(String::New("Bad argument 'tplMatrix.data'")));
+        isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Bad argument 'tplMatrix.data'")));
     }
     
     Cargo *m1 = new Cargo;
@@ -215,15 +217,13 @@ Handle<Value> Search(const Arguments& args) {
     
     AsyncBaton *baton = new AsyncBaton;
     baton->request.data = baton;
-    baton->callback = callback;
+    baton->callback.Reset(isolate, callback);
     baton->m1 = m1;
     baton->m2 = m2;
     baton->colorTolerance = colorTolerance;
     baton->pixelTolerance = pixelTolerance;
     
     uv_queue_work(uv_default_loop(), &baton->request, searchDo, (uv_after_work_cb) searchAfter);
-    
-    return Undefined();
 }
 
 void searchDo(uv_work_t *request) {
@@ -258,27 +258,29 @@ void searchDo(uv_work_t *request) {
 }
 
 void searchAfter(uv_work_t *request) {
+    Isolate* isolate = Isolate::GetCurrent();
     AsyncBaton *baton = static_cast<AsyncBaton*>(request->data);
     
-    Local<Array> out = Array::New((int) baton->result.size());
+    Local<Array> out = Array::New(isolate,(int) baton->result.size());
     Local<Object> match;
     
-    Local<String> row = String::New("row");
-    Local<String> col = String::New("col");
-    Local<String> accuracy = String::New("accuracy");
+    Local<String> row = String::NewFromUtf8(isolate, "row");
+    Local<String> col = String::NewFromUtf8(isolate, "col");
+    Local<String> accuracy = String::NewFromUtf8(isolate, "accuracy");
     
     int i = 0;
     for (std::vector<Match>::iterator it = baton->result.begin(); it != baton->result.end(); it++) {
-        match = Object::New();
-        match->Set(row, Number::New(it->row));
-        match->Set(col, Number::New(it->col));
-        match->Set(accuracy, Number::New(it->accuracy));
+        match = Object::New(isolate);
+        match->Set(row, Number::New(isolate, it->row));
+        match->Set(col, Number::New(isolate, it->col));
+        match->Set(accuracy, Number::New(isolate, it->accuracy));
         
         out->Set(i++, match);
     }
     
-    Handle<Value> argv[] = { Null(), out };
-    baton->callback->Call(Context::GetCurrent()->Global(), 2, argv);
+    Handle<Value> argv[] = { Null(isolate), out };
+    Local<Function> callback = Local<Function>::New(isolate, baton->callback);
+    callback->Call(isolate->GetCurrentContext()->Global(), 2, argv);
     
     delete baton;
     baton = NULL;
@@ -379,7 +381,9 @@ Eigen::RowVectorXf stdDev(MatrixChannel &m) {
 }
 
 void Init(Handle<Object> exports) {
-    exports->Set(String::NewSymbol("search"), FunctionTemplate::New(Search)->GetFunction());
+    Isolate* isolate = Isolate::GetCurrent();
+    Local<String> symbol = String::NewFromUtf8(isolate, "search", v8::String::kInternalizedString);
+    exports->Set(symbol, FunctionTemplate::New(isolate, Search)->GetFunction());
 }
 
 NODE_MODULE(search, Init)
